@@ -101,7 +101,11 @@ export interface CreateReplayInput {
 
 export interface TraceEventNotification {
   id: number;
-  type: "exchange.created" | "protocol-event.created" | "replay.updated";
+  type:
+    | "exchange.created"
+    | "protocol-event.created"
+    | "replay.updated"
+    | "recorder.degraded";
   entityId: string;
   occurredAt: number;
 }

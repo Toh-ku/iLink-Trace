@@ -304,7 +304,7 @@ export function sanitizeJsonBody(
 ): string | null {
   if (!text) return text;
   const value = parseJson(text);
-  if (value === null) return text;
+  if (value === null) return "<non-json body omitted>";
   return JSON.stringify(
     sanitizeProtocolValue(value, key, captureMessageContent),
   );

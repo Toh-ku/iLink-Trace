@@ -8,9 +8,10 @@ test-results/
 *.db
 *.db-shm
 *.db-wal
+*.key
+.ilink-trace/
 .env
 .env.*
 !.env.example
 .DS_Store
 Thumbs.db
-
