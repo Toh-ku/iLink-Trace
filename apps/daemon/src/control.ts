@@ -4,7 +4,7 @@ import staticFiles from "@fastify/static";
 import { Type } from "@sinclair/typebox";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { DaemonConfig } from "./config.js";
-import { EventHub } from "./event-hub.js";
+import type { EventHub } from "./event-hub.js";
 import type { Recorder } from "./recorder.js";
 import type { ReplayManager } from "./replay.js";
 
@@ -54,7 +54,7 @@ export async function createControlServer(
     return payload;
   });
 
-  app.get("/api/v1/health", async () => ({
+  app.get("/api/v1/health", () => ({
     status: "ok",
     recorderDropped: options.recorder.dropped,
     time: Date.now(),
@@ -197,7 +197,7 @@ export async function createControlServer(
       return reply.sendFile("index.html");
     });
   } else {
-    app.get("/", async () => ({
+    app.get("/", () => ({
       name: "iLink Trace",
       status: "web console is not built; run pnpm build",
     }));

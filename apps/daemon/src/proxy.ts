@@ -8,8 +8,8 @@ import {
 } from "node:http";
 import { Readable } from "node:stream";
 import type { HeaderMap, HttpExchange } from "@ilink-trace/contracts";
-import { request as upstreamRequest, type Dispatcher } from "undici";
-import { AccountRegistry } from "./account-registry.js";
+import { request as upstreamRequest } from "undici";
+import type { AccountRegistry } from "./account-registry.js";
 import type { DaemonConfig } from "./config.js";
 import type { Recorder } from "./recorder.js";
 import type { ReplayManager } from "./replay.js";
@@ -230,7 +230,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
       const outgoingHeaders = forwardHeaders(headerMap(request.headers));
       outgoingHeaders["accept-encoding"] = "identity";
       const upstreamResponse = await upstreamRequest(target, {
-        method: (request.method ?? "GET") as Dispatcher.HttpMethod,
+        method: request.method ?? "GET",
         headers: outgoingHeaders,
         body: requestBody,
         signal: abortController.signal,
@@ -246,7 +246,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
         .includes("/get_qrcode_status");
 
       if (isBootstrapStatus) {
-        const held: Buffer[] = [];
+        const held: Uint8Array[] = [];
         let passthrough = false;
         response.statusCode = responseStatus;
         for await (const chunk of upstreamResponse.body) {

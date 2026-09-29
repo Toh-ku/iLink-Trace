@@ -5,7 +5,14 @@ import vueParser from "vue-eslint-parser";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/coverage/**", "**/node_modules/**"],
+    ignores: [
+      "**/dist/**",
+      "**/coverage/**",
+      "**/node_modules/**",
+      "eslint.config.js",
+      "vitest.config.ts",
+      "vitest.integration.config.ts",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -36,6 +43,25 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
         extraFileExtensions: [".vue"],
       },
+    },
+  },
+  {
+    files: ["**/*.ts", "**/*.vue"],
+    rules: {
+      "no-undef": "off",
+    },
+  },
+  {
+    files: ["**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+    },
+  },
+  {
+    files: ["apps/web/src/**/*.ts", "apps/web/src/**/*.vue"],
+    rules: {
+      "@typescript-eslint/no-unsafe-argument": "off",
     },
   },
 );

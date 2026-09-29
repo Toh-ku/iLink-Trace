@@ -13,6 +13,8 @@ interface WorkerOptions {
   databasePath: string;
 }
 
+type DatabaseRow = Record<string, string | number | null>;
+
 const port = parentPort;
 if (!port) throw new Error("storage worker requires a parent port");
 
@@ -103,7 +105,7 @@ function initialize(): void {
     .run(Date.now());
 }
 
-function exchangeFromRow(row: Record<string, unknown>): HttpExchange {
+function exchangeFromRow(row: DatabaseRow): HttpExchange {
   return {
     id: String(row.id),
     accountId: row.account_id === null ? null : String(row.account_id),
@@ -136,7 +138,7 @@ function exchangeFromRow(row: Record<string, unknown>): HttpExchange {
   };
 }
 
-function eventFromRow(row: Record<string, unknown>): ProtocolEvent {
+function eventFromRow(row: DatabaseRow): ProtocolEvent {
   return {
     id: String(row.id),
     exchangeId: String(row.exchange_id),
@@ -152,7 +154,7 @@ function eventFromRow(row: Record<string, unknown>): ProtocolEvent {
   };
 }
 
-function replayFromRow(row: Record<string, unknown>): ReplayRun {
+function replayFromRow(row: DatabaseRow): ReplayRun {
   return {
     id: String(row.id),
     accountId: String(row.account_id),
@@ -248,18 +250,18 @@ function handle(request: StorageRequest): unknown {
           "SELECT * FROM http_exchanges ORDER BY completed_at DESC LIMIT ?",
         )
         .all(Number(payload.limit))
-        .map((row) => exchangeFromRow(row as Record<string, unknown>));
+        .map((row) => exchangeFromRow(row as DatabaseRow));
     case "getExchange": {
       const row = db()
         .prepare("SELECT * FROM http_exchanges WHERE id = ?")
-        .get(String(payload.id)) as Record<string, unknown> | undefined;
+        .get(String(payload.id)) as DatabaseRow | undefined;
       if (!row) return null;
       const events = db()
         .prepare(
           "SELECT * FROM protocol_events WHERE exchange_id = ? ORDER BY occurred_at ASC",
         )
         .all(String(payload.id))
-        .map((item) => eventFromRow(item as Record<string, unknown>));
+        .map((item) => eventFromRow(item as DatabaseRow));
       return { ...exchangeFromRow(row), events } satisfies ExchangeDetail;
     }
     case "listEvents":
@@ -268,11 +270,11 @@ function handle(request: StorageRequest): unknown {
           "SELECT * FROM protocol_events ORDER BY occurred_at DESC LIMIT ?",
         )
         .all(Number(payload.limit))
-        .map((row) => eventFromRow(row as Record<string, unknown>));
+        .map((row) => eventFromRow(row as DatabaseRow));
     case "getEvent": {
       const row = db()
         .prepare("SELECT * FROM protocol_events WHERE id = ?")
-        .get(String(payload.id)) as Record<string, unknown> | undefined;
+        .get(String(payload.id)) as DatabaseRow | undefined;
       return row ? eventFromRow(row) : null;
     }
     case "overview": {
@@ -304,7 +306,7 @@ function handle(request: StorageRequest): unknown {
       return db()
         .prepare("SELECT * FROM replay_runs ORDER BY updated_at DESC")
         .all()
-        .map((row) => replayFromRow(row as Record<string, unknown>));
+        .map((row) => replayFromRow(row as DatabaseRow));
     case "close":
       database?.close();
       database = null;

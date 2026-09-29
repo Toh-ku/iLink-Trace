@@ -3,7 +3,7 @@ import type { HttpExchange, ProtocolEvent } from "@ilink-trace/contracts";
 import { parseExchange, sanitizeJsonBody } from "@ilink-trace/protocol";
 import type { StorageClient } from "@ilink-trace/storage";
 import type { Logger } from "pino";
-import { EventHub } from "./event-hub.js";
+import type { EventHub } from "./event-hub.js";
 import { redactHeaders } from "./security.js";
 
 export interface RecorderOptions {

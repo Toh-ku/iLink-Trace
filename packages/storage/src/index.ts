@@ -50,7 +50,7 @@ export async function createStorageClient(
     if (response.ok) pendingCall.resolve(response.result);
     else pendingCall.reject(new Error(response.error));
   });
-  worker.on("error", (error) => {
+  worker.on("error", (error: Error) => {
     for (const pendingCall of pending.values()) pendingCall.reject(error);
     pending.clear();
   });
@@ -61,7 +61,10 @@ export async function createStorageClient(
   ): Promise<T> => {
     const id = randomUUID();
     return new Promise<T>((resolve, reject) => {
-      pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
+      pending.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject,
+      });
       worker.postMessage({ id, operation, payload } satisfies StorageRequest);
     });
   };

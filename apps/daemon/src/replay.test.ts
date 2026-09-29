@@ -1,5 +1,4 @@
 import type {
-  HttpExchange,
   Overview,
   ProtocolEvent,
   ReplayRun,
@@ -15,7 +14,7 @@ function storageWithEvent(source: ProtocolEvent): StorageClient & {
   const replays: ReplayRun[] = [];
   return {
     replays,
-    recordExchange: async (_exchange: HttpExchange) => undefined,
+    recordExchange: async () => undefined,
     listExchanges: async () => [],
     getExchange: async () => null,
     listEvents: async () => [source],

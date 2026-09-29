@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { CreateReplayInput, ReplayRun } from "@ilink-trace/contracts";
 import { sanitizeProtocolValue } from "@ilink-trace/protocol";
 import type { StorageClient } from "@ilink-trace/storage";
-import { EventHub } from "./event-hub.js";
+import type { EventHub } from "./event-hub.js";
 
 export interface SandboxResponse {
   statusCode: number;
