@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-**P0 — 接入可行性验证。**
+**MVP 纵向切片 — 已实现本地代理、协议解析、控制台与文本重放；P0 客户端兼容性验证仍在进行。**
 
-在 P0 的出口条件全部满足前，不应投入完整 UI、正式数据库 Schema 或完整重放实现。允许建立最小 workspace、simulator、代理 spike 和测试基础设施。
+当前代码已经形成可运行的端到端 MVP，用于尽早验证产品交互。P0 中的真实客户端兼容性、长轮询时长和跨平台出口条件仍必须单独完成；已有 UI 和重放实现不代表这些条件已经通过。
 
 ## P0：接入可行性验证
 
@@ -12,13 +12,13 @@
 
 任务：
 
-- [ ] 建立 pnpm workspace、Node 24、TypeScript ESM 基础配置。
+- [x] 建立 pnpm workspace、Node 24、TypeScript ESM 基础配置。
 - [ ] 建立 `packages/testkit` 上游 simulator，禁止连接真实微信。
-- [ ] 实现最小代理 spike：方法、路径、headers、body 透明转发。
+- [x] 实现最小代理 spike：方法、路径、headers、body 透明转发。
 - [ ] 验证 35 秒级长轮询不会被本地超时提前中止。
 - [ ] 验证客户端断连能取消上游请求。
-- [ ] 模拟 `get_qrcode_status` 的 `baseurl` 改写。
-- [ ] 模拟 `scaned_but_redirect` / `redirect_host`。
+- [x] 实现 `get_qrcode_status` 的 `baseurl` 改写；仍需补充专用 simulator 验收。
+- [x] 实现 `scaned_but_redirect` / `redirect_host` 路由；仍需补充专用 simulator 验收。
 - [ ] 完成一条文本链路：`getupdates → getconfig → sendtyping → sendmessage`。
 - [ ] 输出客户端接入矩阵：bootstrap、existing-session、需要 adapter。
 
@@ -35,13 +35,13 @@
 
 任务：
 
-- [ ] 实现 data plane 和 control plane 双端口。
-- [ ] 实现 Account Registry 与 token HMAC 指纹。
-- [ ] 实现有界 Recorder 队列和降级事件。
-- [ ] 实现 Storage Worker、SQLite WAL 和 migration runner。
+- [x] 实现 data plane 和 control plane 双端口。
+- [x] 实现进程内 Account Registry 与 token HMAC 指纹；持久化 registry 待补。
+- [x] 实现有界 Recorder 队列和降级事件。
+- [x] 实现 Storage Worker、SQLite WAL 和初始 migration。
 - [ ] 建立 `accounts`、`http_exchanges`、`payloads` 基础表。
-- [ ] 实现 payload 上限、截断、hash 和 header 脱敏。
-- [ ] 实现 health、accounts、exchanges REST API。
+- [x] 实现 payload 上限、截断和 header/body 脱敏；payload hash 待补。
+- [x] 实现 health、overview、events、exchanges REST API；accounts API 待补。
 - [ ] 实现保留期清理。
 
 出口条件：
@@ -58,10 +58,10 @@
 任务：
 
 - [ ] 建立 parser registry、parser version 和 fixture 规范。
-- [ ] 实现核心 Bot API parser。
-- [ ] 增加 `protocol_events`、`message_traces`、`trace_spans`。
-- [ ] 实现 `context_token`、`run_id`、`client_id` 关联。
-- [ ] 实现关联可信度。
+- [x] 实现核心 Bot API parser。
+- [x] 增加 `protocol_events`；完整 message trace/span 表待补。
+- [x] 实现 `context_token` 精确关联；`run_id`、`client_id` 的跨事件关联待补。
+- [x] 实现关联可信度字段。
 - [ ] 实现离线 reparse。
 - [ ] 区分网络、HTTP、JSON 和业务成功状态。
 
@@ -77,9 +77,9 @@
 
 任务：
 
-- [ ] Vue 3、Vite、Router、Vue Query 基础骨架。
-- [ ] Overview、Messages、Traces、Exchange Detail 页面。
-- [ ] SSE 事件 ID、断线恢复和 cache invalidation。
+- [x] Vue 3 + Vite 基础骨架；MVP 使用单页控制台，Router/Vue Query 延后。
+- [x] 实现 Overview、事件时间线和 Exchange Detail；完整 Messages/Traces 页面待补。
+- [x] 实现 SSE 事件 ID、浏览器重连和 REST 刷新。
 - [ ] 虚拟列表。
 - [ ] CSS Grid + SVG 时序视图。
 - [ ] 明确展示截断、脱敏、记录降级和关联可信度。
@@ -96,12 +96,12 @@
 
 任务：
 
-- [ ] 持久化账号级 replay 状态机。
-- [ ] 支持 queued、sandbox、draining、timeout、cancel。
-- [ ] 模拟 getupdates/getconfig/sendtyping/sendmessage/notify。
-- [ ] 阻断未知副作用端点。
-- [ ] 实现保真重放和执行重放。
-- [ ] 实现游标不变性检查。
+- [x] 持久化 replay run，并在重启时把未完成任务标为失败。
+- [x] 支持 queued、sandbox、draining、timeout、cancel。
+- [x] 模拟 getupdates/getconfig/sendtyping/sendmessage/notify。
+- [x] 阻断未知副作用端点。
+- [x] 实现保真重放和执行重放。
+- [x] 实现游标不变性单元检查。
 - [ ] 实现旧回复/新回复和耗时对比。
 
 出口条件：
