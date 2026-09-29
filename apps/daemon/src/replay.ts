@@ -117,6 +117,12 @@ export class ReplayManager {
         body: { ret: -1, errmsg: "replay is not active" },
       };
     }
+    if (replay.status === "failed") {
+      return {
+        statusCode: 409,
+        body: { ret: -1, errmsg: "replay account remains quarantined" },
+      };
+    }
     const endpoint = path.toLowerCase();
     let request: Record<string, unknown> | null = null;
     try {
@@ -133,6 +139,17 @@ export class ReplayManager {
         typeof request?.get_updates_buf === "string"
           ? request.get_updates_buf
           : null;
+      if (replay.status !== "queued") {
+        return {
+          statusCode: 200,
+          body: {
+            ret: 0,
+            msgs: [],
+            get_updates_buf: cursor,
+            longpolling_timeout_ms: 0,
+          },
+        };
+      }
       const message =
         replay.mode === "execution"
           ? executionMessage(replay.inboundMessage, replay.id)
@@ -194,7 +211,10 @@ export class ReplayManager {
       };
     }
 
-    await this.#finish(replay, "failed", `unknown replay endpoint: ${path}`);
+    replay.status = "failed";
+    replay.error = `unknown replay endpoint: ${path}`;
+    replay.updatedAt = Date.now();
+    await this.#update(replay);
     return {
       statusCode: 409,
       body: { ret: -1, errmsg: "endpoint is blocked during replay" },

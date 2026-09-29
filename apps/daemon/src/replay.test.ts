@@ -121,5 +121,14 @@ describe("replay sandbox", () => {
     expect(storage.replays.find((item) => item.id === run.id)?.status).toBe(
       "failed",
     );
+    expect(replay.hasActive("account-1")).toBe(true);
+    const retried = await replay.handle(
+      "account-1",
+      "/ilink/bot/unknown-side-effect",
+      "{}",
+    );
+    expect(retried.statusCode).toBe(409);
+    await replay.cancel(run.id);
+    expect(replay.hasActive("account-1")).toBe(false);
   });
 });

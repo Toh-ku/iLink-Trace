@@ -204,101 +204,60 @@ onUnmounted(() => {
 
 <template>
   <main class="app-shell">
-    <section
-      v-if="!hasToken"
-      class="login-card"
-    >
-      <div class="brand-mark">
-        iT
-      </div>
-      <p class="eyebrow">
-        LOCAL PROTOCOL OBSERVATORY
-      </p>
+    <section v-if="!hasToken" class="login-card">
+      <div class="brand-mark">iT</div>
+      <p class="eyebrow">LOCAL PROTOCOL OBSERVATORY</p>
       <h1>连接 iLink Trace</h1>
       <p class="muted">
         输入 daemon 启动时输出的一次性访问令牌。令牌只保存在当前浏览器会话中。
       </p>
-      <form
-        class="token-form"
-        @submit.prevent="useToken()"
-      >
+      <form class="token-form" @submit.prevent="useToken()">
         <input
           v-model="tokenInput"
           type="password"
           autocomplete="off"
           placeholder="访问令牌"
           autofocus
-        >
-        <button
-          class="primary"
-          type="submit"
-        >
-          连接控制台
-        </button>
+        />
+        <button class="primary" type="submit">连接控制台</button>
       </form>
     </section>
 
     <template v-else>
       <header class="topbar">
         <div class="brand">
-          <div class="brand-mark small">
-            iT
-          </div>
+          <div class="brand-mark small">iT</div>
           <div>
-            <p class="eyebrow">
-              iLink / ClawBot
-            </p>
+            <p class="eyebrow">iLink / ClawBot</p>
             <h1>Trace Console</h1>
           </div>
         </div>
         <div class="top-actions">
-          <span
-            class="connection"
-            :class="streamState"
-          >
+          <span class="connection" :class="streamState">
             <i />{{ streamState === "live" ? "实时连接" : "正在重连" }}
           </span>
-          <button
-            class="ghost"
-            :disabled="loading"
-            @click="refresh(true)"
-          >
+          <button class="ghost" :disabled="loading" @click="refresh(true)">
             {{ loading ? "刷新中" : "刷新" }}
           </button>
-          <button
-            class="ghost"
-            @click="downloadExport"
-          >
-            导出 JSON
-          </button>
+          <button class="ghost" @click="downloadExport">导出 JSON</button>
         </div>
       </header>
 
-      <div
-        v-if="error"
-        class="error-banner"
-      >
+      <div v-if="error" class="error-banner">
         <span>{{ error }}</span>
-        <button @click="error = ''">
-          关闭
-        </button>
+        <button @click="error = ''">关闭</button>
       </div>
 
       <section class="hero">
         <div>
-          <p class="eyebrow">
-            OBSERVED FACTS, NOT GUESSES
-          </p>
+          <p class="eyebrow">OBSERVED FACTS, NOT GUESSES</p>
           <h2>本地协议链路一览</h2>
           <p>
             网络响应、业务接受与最终送达分别呈现；未接入 SDK 的处理区间标记为
             unobserved processing gap。
           </p>
         </div>
-        <div
-          class="hero-orbit"
-          aria-hidden="true"
-        >
+        <div class="hero-orbit" aria-hidden="true">
           <span>BOT</span><b /><span>TRACE</span><b /><span>iLINK</span>
         </div>
       </section>
@@ -316,7 +275,10 @@ onUnmounted(() => {
         </article>
         <article>
           <span>入站 / 出站</span>
-          <strong>{{ overview?.inboundMessages ?? 0 }}<em>/</em>{{ overview?.outboundMessages ?? 0 }}</strong>
+          <strong
+            >{{ overview?.inboundMessages ?? 0 }}<em>/</em
+            >{{ overview?.outboundMessages ?? 0 }}</strong
+          >
           <small>message observations</small>
         </article>
         <article :class="{ warn: (overview?.failures ?? 0) > 0 }">
@@ -335,22 +297,13 @@ onUnmounted(() => {
         <article class="panel event-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">
-                PROTOCOL TIMELINE
-              </p>
+              <p class="eyebrow">PROTOCOL TIMELINE</p>
               <h3>最新事件</h3>
             </div>
             <span>{{ recentEvents.length }} 条</span>
           </div>
-          <div
-            v-if="recentEvents.length"
-            class="event-list"
-          >
-            <div
-              v-for="item in recentEvents"
-              :key="item.id"
-              class="event-row"
-            >
+          <div v-if="recentEvents.length" class="event-list">
+            <div v-for="item in recentEvents" :key="item.id" class="event-row">
               <div class="event-rail">
                 <i :class="`kind-${item.kind}`" />
               </div>
@@ -376,21 +329,14 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <div
-            v-else
-            class="empty-state"
-          >
-            等待 Bot 流量经过代理端口 8787
-          </div>
+          <div v-else class="empty-state">等待 Bot 流量经过代理端口 8787</div>
         </article>
 
         <div class="right-stack">
           <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">
-                  HTTP EXCHANGES
-                </p>
+                <p class="eyebrow">HTTP EXCHANGES</p>
                 <h3>请求记录</h3>
               </div>
               <span>{{ exchanges.length }} 条</span>
@@ -407,13 +353,11 @@ onUnmounted(() => {
                 <span
                   class="status"
                   :class="{ failed: (exchange.responseStatus ?? 500) >= 400 }"
-                >{{ exchange.responseStatus ?? "ERR" }}</span>
+                  >{{ exchange.responseStatus ?? "ERR" }}</span
+                >
                 <span class="duration">{{ exchange.durationMs }} ms</span>
               </button>
-              <div
-                v-if="!exchanges.length"
-                class="empty-state compact"
-              >
+              <div v-if="!exchanges.length" class="empty-state compact">
                 暂无交换
               </div>
             </div>
@@ -422,9 +366,7 @@ onUnmounted(() => {
           <article class="panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">
-                  REPLAY SANDBOX
-                </p>
+                <p class="eyebrow">REPLAY SANDBOX</p>
                 <h3>重放运行</h3>
               </div>
               <span>副作用已阻断</span>
@@ -437,21 +379,24 @@ onUnmounted(() => {
               >
                 <div>
                   <strong>{{ run.mode }} · {{ run.status }}</strong>
-                  <small>{{ formatTime(run.updatedAt) }} ·
-                    {{ shortId(run.accountId) }}</small>
+                  <small
+                    >{{ formatTime(run.updatedAt) }} ·
+                    {{ shortId(run.accountId) }}</small
+                  >
                 </div>
                 <button
-                  v-if="['queued', 'sandbox', 'draining'].includes(run.status)"
+                  v-if="
+                    ['queued', 'sandbox', 'draining', 'failed'].includes(
+                      run.status,
+                    )
+                  "
                   class="text-button danger"
                   @click="cancelReplay(run.id)"
                 >
                   取消
                 </button>
               </div>
-              <div
-                v-if="!replays.length"
-                class="empty-state compact"
-              >
+              <div v-if="!replays.length" class="empty-state compact">
                 从入站消息事件启动安全重放
               </div>
             </div>
@@ -468,15 +413,10 @@ onUnmounted(() => {
       <aside class="detail-drawer">
         <div class="drawer-heading">
           <div>
-            <p class="eyebrow">
-              EXCHANGE DETAIL
-            </p>
+            <p class="eyebrow">EXCHANGE DETAIL</p>
             <h3>{{ selectedExchange.method }} {{ selectedExchange.path }}</h3>
           </div>
-          <button
-            class="close-button"
-            @click="selectedExchange = null"
-          >
+          <button class="close-button" @click="selectedExchange = null">
             ×
           </button>
         </div>
@@ -489,7 +429,7 @@ onUnmounted(() => {
         <p
           v-if="
             selectedExchange.requestTruncated ||
-              selectedExchange.responseTruncated
+            selectedExchange.responseTruncated
           "
           class="notice"
         >
