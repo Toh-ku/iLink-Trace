@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Repository preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      node_project_ready: ${{ steps.detect.outputs.node_project_ready }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate repository guidance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s AGENTS.md
+          test -s docs/technical-design.zh-CN.md
+          test -s .agent/README.md
+          test -s .agent/architecture-guardrails.md
+          test -s .agent/implementation-plan.md
+          test -s .agent/verification.md
+
+      - name: Detect implementation workspace
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f package.json && -f pnpm-lock.yaml && -f pnpm-workspace.yaml ]]; then
+            echo "node_project_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "node_project_ready=false" >> "$GITHUB_OUTPUT"
+            echo "TypeScript workspace is not scaffolded yet; code jobs will be skipped."
+          fi
+
+  quality:
+    name: Quality gates
+    needs: preflight
+    if: needs.preflight.outputs.node_project_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/setup@v2
+        with:
+          version: 12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+      - name: Build all packages
+        run: pnpm build
+
+  compatibility:
+    name: Integration (${{ matrix.os }})
+    needs: preflight
+    if: needs.preflight.outputs.node_project_ready == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/setup@v2
+        with:
+          version: 12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run integration tests
+        run: pnpm test:integration

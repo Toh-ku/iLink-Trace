@@ -1,0 +1,87 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.ts'
+      - '**/*.mts'
+      - '**/*.cts'
+      - '**/*.vue'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.ts'
+      - '**/*.mts'
+      - '**/*.cts'
+      - '**/*.vue'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    - cron: '23 18 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  packages: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect source workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      source_ready: ${{ steps.source.outputs.source_ready }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Detect JavaScript or TypeScript sources
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.ts' -o -name '*.mts' -o -name '*.cts' -o -name '*.vue' \) -not -path './node_modules/*' -print -quit | grep -q .; then
+            echo "source_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "source_ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  analyze:
+    name: Analyze JavaScript and TypeScript
+    needs: detect
+    if: needs.detect.outputs.source_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:javascript-typescript
