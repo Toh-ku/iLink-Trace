@@ -44,6 +44,13 @@ export default tseslint.config(
         extraFileExtensions: [".vue"],
       },
     },
+    rules: {
+      "vue/html-closing-bracket-newline": "off",
+      "vue/html-indent": "off",
+      "vue/html-self-closing": "off",
+      "vue/max-attributes-per-line": "off",
+      "vue/singleline-html-element-content-newline": "off",
+    },
   },
   {
     files: ["**/*.ts", "**/*.vue"],
