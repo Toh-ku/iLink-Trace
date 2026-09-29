@@ -1,0 +1,23 @@
+{
+  "name": "@ilink-trace/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@ilink-trace/contracts": "workspace:*",
+    "@tanstack/vue-query": "^5.90.2",
+    "vue": "^3.5.22",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "catalog:",
+    "vite": "^7.1.7",
+    "vue-tsc": "^3.0.8"
+  }
+}

@@ -31,4 +31,3 @@
 - 新增架构例外时，在 `docs/adr/` 添加 ADR，并同步 guardrails。
 - 新增根脚本、测试层或支持平台时，同步 `verification.md` 和 CI。
 - 不要把临时对话、个人路径、token 或真实流量样本写入 `.agent/`。
-

@@ -116,4 +116,3 @@ LIVE → REPLAY_QUEUED → REPLAY_SANDBOX → REPLAY_DRAINING → LIVE
 - BigInt 在 JSON API 中编码为十进制字符串。
 - SSE 发送摘要与实体 ID，不推送完整敏感 payload。
 - Vue 通过 REST 获取权威状态，SSE 只触发增量刷新或 cache invalidation。
-

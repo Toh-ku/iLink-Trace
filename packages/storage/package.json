@@ -1,0 +1,25 @@
+{
+  "name": "@ilink-trace/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/worker.ts --format esm --dts --clean --external better-sqlite3",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ilink-trace/contracts": "workspace:*",
+    "better-sqlite3": "^12.4.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "tsup": "catalog:",
+    "typescript": "catalog:"
+  }
+}

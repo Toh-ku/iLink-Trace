@@ -4,30 +4,30 @@ on:
   push:
     branches: [main]
     paths:
-      - '**/*.js'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.mts'
-      - '**/*.cts'
-      - '**/*.vue'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/codeql.yml'
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - "**/*.ts"
+      - "**/*.mts"
+      - "**/*.cts"
+      - "**/*.vue"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/codeql.yml"
   pull_request:
     paths:
-      - '**/*.js'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.mts'
-      - '**/*.cts'
-      - '**/*.vue'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/codeql.yml'
+      - "**/*.js"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - "**/*.ts"
+      - "**/*.mts"
+      - "**/*.cts"
+      - "**/*.vue"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/codeql.yml"
   schedule:
-    - cron: '23 18 * * 1'
+    - cron: "23 18 * * 1"
   workflow_dispatch:
 
 permissions:

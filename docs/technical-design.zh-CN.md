@@ -20,16 +20,16 @@ iLink Trace 技术上可行，适合实现为一个运行在 Bot 与微信 iLink
 
 整体可行性评估：
 
-| 能力 | 可行性 | 说明 |
-| --- | ---: | --- |
-| HTTP 请求/响应记录 | 高 | Node.js 原生 HTTP 和流 API 足够完成 |
-| 长轮询观测 | 高 | 需要正确处理超时、取消和客户端断连 |
-| iLink 协议解析 | 高 | 公开协议资料和官方实现可作为依据 |
-| 消息链路关联 | 较高 | 需要组合 `context_token`、`run_id`、用户和时间窗口 |
-| Vue Web 时间线 | 高 | 主要工作量在交互和数据组织 |
-| AI 内部调用观测 | 低 | 仅靠 iLink 流量无法看见模型调用内部信息 |
-| 安全历史重放 | 中 | 可实现，但必须设计成协议沙箱 |
-| 任意 Bot 零适配接入 | 较低 | 取决于 Bot 是否允许配置初始 API 地址 |
+| 能力                | 可行性 | 说明                                               |
+| ------------------- | -----: | -------------------------------------------------- |
+| HTTP 请求/响应记录  |     高 | Node.js 原生 HTTP 和流 API 足够完成                |
+| 长轮询观测          |     高 | 需要正确处理超时、取消和客户端断连                 |
+| iLink 协议解析      |     高 | 公开协议资料和官方实现可作为依据                   |
+| 消息链路关联        |   较高 | 需要组合 `context_token`、`run_id`、用户和时间窗口 |
+| Vue Web 时间线      |     高 | 主要工作量在交互和数据组织                         |
+| AI 内部调用观测     |     低 | 仅靠 iLink 流量无法看见模型调用内部信息            |
+| 安全历史重放        |     中 | 可实现，但必须设计成协议沙箱                       |
+| 任意 Bot 零适配接入 |   较低 | 取决于 Bot 是否允许配置初始 API 地址               |
 
 ## 2. 目标和非目标
 
@@ -105,25 +105,25 @@ bot token 指纹 → account_id → upstream base URL
 
 ### 4.1 推荐选型
 
-| 层 | 选型 | 说明 |
-| --- | --- | --- |
-| 运行时 | Node.js 24 LTS | 当前生产稳定线，和官方 OpenClaw Node 生态一致 |
-| 主语言 | TypeScript，ESM | 代理、协议、存储、API 统一使用 TS |
-| 包管理 | pnpm workspace | 管理 daemon、web 和共享包 |
-| 数据面代理 | `node:http` / `node:https` + `undici` | 保留对流、取消、超时和连接池的控制 |
-| 控制面 API | Fastify | REST、SSE、Schema 校验、静态资源服务 |
-| Schema | TypeBox 或 Zod，二选一 | API 输入校验和 TS 类型推导；项目内只保留一套 |
-| 数据库 | SQLite + `better-sqlite3` | 成熟、稳定；放入 Worker Thread 避免阻塞代理循环 |
-| 数据迁移 | 版本化 SQL migrations | 保持透明，避免 ORM 隐藏 SQLite 行为 |
-| 前端 | Vue 3 + TypeScript + Vite | 组件化、开发体验和构建速度适合本地工具 |
-| 前端路由 | Vue Router | 页面和详情路由 |
-| 服务端状态 | `@tanstack/vue-query` | 请求缓存、分页和失效管理 |
-| 本地 UI 状态 | Pinia（按需） | 只存筛选器、布局、用户偏好等客户端状态 |
-| 样式 | Tailwind CSS | 快速构建调试工具界面 |
-| 实时推送 | SSE | MVP 只有服务端到浏览器的单向事件流 |
-| 测试 | Vitest + Playwright | 单元、协议夹具、集成和浏览器端测试 |
-| 日志 | Pino | 结构化日志和内建脱敏配置 |
-| 构建 | tsup/esbuild + Vite | daemon 打包和 Vue 静态资源构建 |
+| 层           | 选型                                  | 说明                                            |
+| ------------ | ------------------------------------- | ----------------------------------------------- |
+| 运行时       | Node.js 24 LTS                        | 当前生产稳定线，和官方 OpenClaw Node 生态一致   |
+| 主语言       | TypeScript，ESM                       | 代理、协议、存储、API 统一使用 TS               |
+| 包管理       | pnpm workspace                        | 管理 daemon、web 和共享包                       |
+| 数据面代理   | `node:http` / `node:https` + `undici` | 保留对流、取消、超时和连接池的控制              |
+| 控制面 API   | Fastify                               | REST、SSE、Schema 校验、静态资源服务            |
+| Schema       | TypeBox 或 Zod，二选一                | API 输入校验和 TS 类型推导；项目内只保留一套    |
+| 数据库       | SQLite + `better-sqlite3`             | 成熟、稳定；放入 Worker Thread 避免阻塞代理循环 |
+| 数据迁移     | 版本化 SQL migrations                 | 保持透明，避免 ORM 隐藏 SQLite 行为             |
+| 前端         | Vue 3 + TypeScript + Vite             | 组件化、开发体验和构建速度适合本地工具          |
+| 前端路由     | Vue Router                            | 页面和详情路由                                  |
+| 服务端状态   | `@tanstack/vue-query`                 | 请求缓存、分页和失效管理                        |
+| 本地 UI 状态 | Pinia（按需）                         | 只存筛选器、布局、用户偏好等客户端状态          |
+| 样式         | Tailwind CSS                          | 快速构建调试工具界面                            |
+| 实时推送     | SSE                                   | MVP 只有服务端到浏览器的单向事件流              |
+| 测试         | Vitest + Playwright                   | 单元、协议夹具、集成和浏览器端测试              |
+| 日志         | Pino                                  | 结构化日志和内建脱敏配置                        |
+| 构建         | tsup/esbuild + Vite                   | daemon 打包和 Vue 静态资源构建                  |
 
 ### 4.2 为什么选择 Node.js 24 LTS
 
@@ -265,9 +265,9 @@ Recorder 位于旁路，不能阻塞转发主路径。
 
 ```ts
 interface ProtocolParser {
-  readonly id: string
-  supports(exchange: HttpExchange): boolean
-  parse(exchange: HttpExchange, context: ParseContext): ProtocolEvent[]
+  readonly id: string;
+  supports(exchange: HttpExchange): boolean;
+  parse(exchange: HttpExchange, context: ParseContext): ProtocolEvent[];
 }
 ```
 
@@ -361,15 +361,15 @@ LIVE
 
 沙箱必须处理：
 
-| 端点 | 重放行为 |
-| --- | --- |
-| `getupdates` | 注入历史消息，不推进真实上游游标 |
-| `getconfig` | 返回历史或合成的 typing ticket |
-| `sendtyping` | 记录但不转发 |
-| `sendmessage` | 捕获新回复，记录但不转发 |
-| `getuploadurl` | 返回本地模拟上传地址或明确拒绝 |
-| CDN 上传 | 写入临时隔离区或只记录元数据 |
-| `notifyStart/Stop` | 记录但不转发 |
+| 端点               | 重放行为                         |
+| ------------------ | -------------------------------- |
+| `getupdates`       | 注入历史消息，不推进真实上游游标 |
+| `getconfig`        | 返回历史或合成的 typing ticket   |
+| `sendtyping`       | 记录但不转发                     |
+| `sendmessage`      | 捕获新回复，记录但不转发         |
+| `getuploadurl`     | 返回本地模拟上传地址或明确拒绝   |
+| CDN 上传           | 写入临时隔离区或只记录元数据     |
+| `notifyStart/Stop` | 记录但不转发                     |
 
 游标策略：重放响应返回 Bot 当前请求所携带的 `get_updates_buf`，不回写历史游标，从而避免下一次真实轮询发生倒退。
 
@@ -781,19 +781,19 @@ Node Single Executable Applications 目前仍未完全稳定，Bun 编译也会�
 
 ## 16. 已确认的技术决策
 
-| 决策 | 结果 |
-| --- | --- |
-| 主要实现语言 | TypeScript / JavaScript |
-| 服务端运行时 | Node.js 24 LTS |
-| 前端 | Vue 3 + TypeScript + Vite |
-| 数据面 | Node 原生 HTTP + undici |
-| 控制面 | Fastify REST + SSE |
-| 本地存储 | SQLite，通过独立 Worker 访问 |
-| 首发 SQLite 驱动 | better-sqlite3，保留适配接口 |
-| 实时协议 | SSE，WebSocket 延后 |
-| 首发分发 | npm CLI + Docker |
-| 重放安全模型 | 账号级协议沙箱，默认禁止真实副作用 |
-| 自动接入承诺 | 仅适用于支持自定义 API base URL 的客户端 |
+| 决策             | 结果                                     |
+| ---------------- | ---------------------------------------- |
+| 主要实现语言     | TypeScript / JavaScript                  |
+| 服务端运行时     | Node.js 24 LTS                           |
+| 前端             | Vue 3 + TypeScript + Vite                |
+| 数据面           | Node 原生 HTTP + undici                  |
+| 控制面           | Fastify REST + SSE                       |
+| 本地存储         | SQLite，通过独立 Worker 访问             |
+| 首发 SQLite 驱动 | better-sqlite3，保留适配接口             |
+| 实时协议         | SSE，WebSocket 延后                      |
+| 首发分发         | npm CLI + Docker                         |
+| 重放安全模型     | 账号级协议沙箱，默认禁止真实副作用       |
+| 自动接入承诺     | 仅适用于支持自定义 API base URL 的客户端 |
 
 ## 17. 参考资料
 
@@ -803,4 +803,3 @@ Node Single Executable Applications 目前仍未完全稳定，Bun 编译也会�
 - [Node.js 发布状态](https://nodejs.org/en/about/previous-releases)
 - [Node.js SQLite API](https://nodejs.org/api/sqlite.html)
 - [Vue 发布策略](https://vuejs.org/about/releases)
-

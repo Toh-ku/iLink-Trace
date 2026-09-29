@@ -1,0 +1,23 @@
+{
+  "name": "@ilink-trace/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ilink-trace/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "catalog:",
+    "typescript": "catalog:"
+  }
+}

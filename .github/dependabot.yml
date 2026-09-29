@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: '09:00'
+      time: "09:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
     labels:
@@ -15,14 +15,14 @@ updates:
     groups:
       github-actions:
         patterns:
-          - '*'
+          - "*"
 
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
       day: monday
-      time: '09:30'
+      time: "09:30"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 10
     versioning-strategy: increase-if-necessary
@@ -39,4 +39,3 @@ updates:
         update-types:
           - minor
           - patch
-

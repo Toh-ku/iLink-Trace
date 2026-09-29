@@ -129,4 +129,3 @@
 - `pnpm pack --dry-run` 内容经过审计。
 - 发布包不包含 fixture 中的敏感样本、开发数据库或本地配置。
 - 新环境可以按 README 完成安装和本地 simulator 验证。
-
