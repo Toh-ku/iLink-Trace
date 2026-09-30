@@ -11,7 +11,7 @@ iLink Trace 是微信 iLink / ClawBot 协议的本地可观测代理与调试沙
 - 受信上游校验、账号 token HMAC 指纹和二维码确认 `baseurl` 改写。
 - 有界 request/response 捕获；转发完成后异步解析和写入 SQLite Worker。
 - `get_qrcode_status`、`getupdates`、`getconfig`、`sendtyping`、`sendmessage`、`getuploadurl` 和生命周期通知解析。
-- Vue 3 控制台：概览、实时事件、HTTP exchange 详情、重放运行和脱敏 JSON 导出。
+- Vue 3 控制台：概览、实时事件、HTTP exchange 详情、重放运行、脱敏 JSON 导出和明暗主题。
 - 账号级文本重放沙箱：当前游标保持不变，typing/send/notify 不访问真实上游，未知端点 fail closed。
 - 默认不保存消息正文；Authorization、bot token、二维码信息和用户 ID 不以明文落库。
 
@@ -37,7 +37,7 @@ iLink Trace console: http://127.0.0.1:8788/?token=<generated-token>
 http://127.0.0.1:8787
 ```
 
-打开 daemon 输出的控制台 URL 后即可查看流量。访问令牌只保存在当前浏览器 `sessionStorage`，刷新页面仍有效，关闭浏览器会话后清除。
+打开 daemon 输出的控制台 URL 后即可查看流量。访问令牌只保存在当前浏览器 `sessionStorage`，刷新页面仍有效，关闭浏览器会话后清除。控制台默认跟随系统明暗偏好，手动选择会单独保存在浏览器 `localStorage` 中。
 
 开发模式需要分别运行 daemon 与 Vite；根命令会并行启动二者：
 

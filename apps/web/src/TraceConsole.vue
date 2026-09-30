@@ -17,6 +17,7 @@ import {
   type TrajectoryCategory,
   type TrajectoryTimelineMode,
 } from "./trajectory";
+import { nextTheme, resolveTheme, type Theme } from "./theme";
 
 type CategoryFilter = "all" | TrajectoryCategory;
 
@@ -30,6 +31,12 @@ const selectedExchange = ref<ExchangeDetail | null>(null);
 const selectedEventId = ref<string | null>(null);
 const categoryFilter = ref<CategoryFilter>("all");
 const timelineMode = ref<TrajectoryTimelineMode>("time");
+const theme = ref<Theme>(
+  resolveTheme(
+    localStorage.getItem("ilink-trace-theme"),
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  ),
+);
 const loading = ref(false);
 const error = ref("");
 const streamState = ref<"offline" | "connecting" | "live">("offline");
@@ -120,6 +127,16 @@ const kindLabels: Record<ProtocolEventKind, string> = {
 
 function endpoint(path: string): string {
   return `/api/v1${path}`;
+}
+
+function applyTheme(next: Theme): void {
+  theme.value = next;
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("ilink-trace-theme", next);
+}
+
+function toggleTheme(): void {
+  applyTheme(nextTheme(theme.value));
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -308,6 +325,7 @@ function categoryLabel(event: ProtocolEvent): string {
 }
 
 onMounted(() => {
+  applyTheme(theme.value);
   const url = new URL(window.location.href);
   const supplied = url.searchParams.get("token");
   if (supplied) {
@@ -328,6 +346,16 @@ onUnmounted(() => {
 
 <template>
   <main class="app-shell">
+    <button
+      v-if="!hasToken"
+      class="theme-toggle login-theme"
+      :aria-label="theme === 'dark' ? '切换到白天主题' : '切换到黑夜主题'"
+      :title="theme === 'dark' ? '切换到白天主题' : '切换到黑夜主题'"
+      @click="toggleTheme"
+    >
+      <span aria-hidden="true">{{ theme === "dark" ? "☀" : "☾" }}</span>
+      {{ theme === "dark" ? "白天" : "黑夜" }}
+    </button>
     <section v-if="!hasToken" class="login-card">
       <div class="brand-mark">iT</div>
       <p class="eyebrow">LOCAL PROTOCOL OBSERVATORY</p>
@@ -357,6 +385,15 @@ onUnmounted(() => {
           </div>
         </div>
         <div class="top-actions">
+          <button
+            class="theme-toggle"
+            :aria-label="theme === 'dark' ? '切换到白天主题' : '切换到黑夜主题'"
+            :title="theme === 'dark' ? '切换到白天主题' : '切换到黑夜主题'"
+            @click="toggleTheme"
+          >
+            <span aria-hidden="true">{{ theme === "dark" ? "☀" : "☾" }}</span>
+            {{ theme === "dark" ? "白天" : "黑夜" }}
+          </button>
           <span class="connection" :class="streamState">
             <i />{{ streamState === "live" ? "实时连接" : "正在重连" }}
           </span>
