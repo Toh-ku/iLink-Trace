@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { createStorageClient } from "@ilink-trace/storage";
 import pino from "pino";
 import { AccountRegistry } from "./account-registry.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, loadDotEnv } from "./config.js";
 import { createControlServer } from "./control.js";
 import { EventHub } from "./event-hub.js";
 import { createProxyServer } from "./proxy.js";
@@ -11,9 +11,9 @@ import { Recorder } from "./recorder.js";
 import { ReplayManager } from "./replay.js";
 import { loadOrCreateHmacKey, randomAccessToken } from "./security.js";
 
-const config = loadConfig();
+const config = loadConfig(loadDotEnv());
 const logger = pino({
-  level: process.env.ILINK_TRACE_LOG_LEVEL ?? "info",
+  level: config.logLevel,
   redact: {
     paths: [
       "req.headers.authorization",

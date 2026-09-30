@@ -49,15 +49,16 @@ Vite 开发地址为 `http://127.0.0.1:5173`，`/api` 会代理到本地控制�
 
 ## 配置
 
-配置通过环境变量传入。PowerShell 示例：
+daemon 读取启动工作目录中的 `.env` 文件，首次使用时复制示例文件：
 
 ```powershell
-$env:ILINK_TRACE_CAPTURE_MESSAGE_CONTENT = "true"
-$env:ILINK_TRACE_UPSTREAM = "https://ilinkai.weixin.qq.com"
+Copy-Item .env.example .env
 pnpm start
 ```
 
-| 环境变量                              | 默认值                          | 说明                                     |
+`.env` 已被 Git 忽略；不要把真实凭据写入 `.env.example`。未创建 `.env` 时使用下表默认值。
+
+| `.env` 配置项                         | 默认值                          | 说明                                     |
 | ------------------------------------- | ------------------------------- | ---------------------------------------- |
 | `ILINK_TRACE_PROXY_HOST`              | `127.0.0.1`                     | 数据面监听地址                           |
 | `ILINK_TRACE_PROXY_PORT`              | `8787`                          | 数据面端口                               |
@@ -67,6 +68,7 @@ pnpm start
 | `ILINK_TRACE_UPSTREAM`                | `https://ilinkai.weixin.qq.com` | 初始和未知账号使用的受信上游             |
 | `ILINK_TRACE_ALLOWED_UPSTREAM_HOSTS`  | `weixin.qq.com`                 | 逗号分隔的上游域名后缀 allowlist         |
 | `ILINK_TRACE_DATA_DIR`                | `.ilink-trace`                  | SQLite 和本机 HMAC 密钥目录              |
+| `ILINK_TRACE_WEB_ROOT`                | 内置 Web 构建目录               | Vue 控制台静态文件目录                   |
 | `ILINK_TRACE_CAPTURE_BODY_BYTES`      | `1048576`                       | 单向 body 最大捕获字节数；不限制转发大小 |
 | `ILINK_TRACE_CAPTURE_MESSAGE_CONTENT` | `false`                         | 是否保存消息正文；文本重放需要先启用     |
 | `ILINK_TRACE_RECORDER_QUEUE_SIZE`     | `500`                           | 异步记录队列最大 exchange 数             |

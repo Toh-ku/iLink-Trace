@@ -121,6 +121,7 @@ describe("capture proxy", () => {
       captureBodyBytes: 1024,
       captureMessageContent: false,
       recorderQueueSize: 10,
+      logLevel: "silent",
     };
     const proxy = createProxyServer({ config, registry, recorder, replay });
     servers.push(proxy);

@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 export interface DaemonConfig {
   proxyHost: string;
@@ -15,6 +17,7 @@ export interface DaemonConfig {
   captureBodyBytes: number;
   captureMessageContent: boolean;
   recorderQueueSize: number;
+  logLevel: string;
 }
 
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -27,7 +30,16 @@ function booleanValue(value: string | undefined, fallback: boolean): boolean {
   return value === "1" || value.toLowerCase() === "true";
 }
 
-export function loadConfig(environment = process.env): DaemonConfig {
+export function loadDotEnv(path = resolve(".env")): NodeJS.ProcessEnv {
+  try {
+    return parseEnv(readFileSync(path, "utf8"));
+  } catch (reason) {
+    if ((reason as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw reason;
+  }
+}
+
+export function loadConfig(environment: NodeJS.ProcessEnv = {}): DaemonConfig {
   const proxyHost = environment.ILINK_TRACE_PROXY_HOST ?? "127.0.0.1";
   const proxyPort = positiveInteger(environment.ILINK_TRACE_PROXY_PORT, 8787);
   const controlHost = environment.ILINK_TRACE_CONTROL_HOST ?? "127.0.0.1";
@@ -73,5 +85,6 @@ export function loadConfig(environment = process.env): DaemonConfig {
       environment.ILINK_TRACE_RECORDER_QUEUE_SIZE,
       500,
     ),
+    logLevel: environment.ILINK_TRACE_LOG_LEVEL ?? "info",
   };
 }
