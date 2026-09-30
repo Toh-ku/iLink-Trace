@@ -59,11 +59,11 @@
 
 - [ ] 建立 parser registry、parser version 和 fixture 规范。
 - [x] 实现核心 Bot API parser。
-- [x] 增加 `protocol_events`；完整 message trace/span 表待补。
-- [x] 实现 `context_token` 精确关联；`run_id`、`client_id` 的跨事件关联待补。
+- [x] 增加 `protocol_events`、`message_traces`、`trace_spans`，新增 migration 回填历史派生数据。
+- [x] 实现账号/来源隔离的 context HMAC、run_id、已知 client_id 关联及用户时间窗口推断；歧义保持独立。
 - [x] 实现关联可信度字段。
 - [ ] 实现离线 reparse。
-- [ ] 区分网络、HTTP、JSON 和业务成功状态。
+- [x] 区分网络、HTTP、JSON 和业务成功状态；最终送达保持未知。
 
 出口条件：
 
@@ -78,11 +78,11 @@
 任务：
 
 - [x] Vue 3 + Vite 基础骨架；MVP 使用单页控制台，Router/Vue Query 延后。
-- [x] 实现 Overview、事件时间线和 Exchange Detail；完整 Messages/Traces 页面待补。
+- [x] 实现 Overview、事件时间线、Exchange Detail、聊天式 Messages 和完整消息 Traces 页面。
 - [x] 实现 SSE 事件 ID、浏览器重连和 REST 刷新。
-- [ ] 虚拟列表。
-- [ ] CSS Grid + SVG 时序视图。
-- [ ] 明确展示截断、脱敏、记录降级和关联可信度。
+- [x] 历史游标分页和 Messages/Traces 虚拟列表。
+- [x] CSS Grid + SVG 四泳道消息时序视图。
+- [x] 明确展示截断、脱敏、记录降级和关联可信度。
 
 出口条件：
 

@@ -6,6 +6,9 @@ import type {
   Overview,
   ProtocolEvent,
   ReplayRun,
+  TracePage,
+  TraceDetail,
+  TraceListQuery,
 } from "@ilink-trace/contracts";
 import type { StorageRequest, StorageResponse } from "./worker-contract.js";
 
@@ -15,7 +18,9 @@ export interface StorageClient {
   recordExchange(
     exchange: HttpExchange,
     events: ProtocolEvent[],
-  ): Promise<void>;
+  ): Promise<Array<{ id: string; created: boolean }>>;
+  listTraces(query?: TraceListQuery): Promise<TracePage>;
+  getTrace(id: string, spanOffset?: number): Promise<TraceDetail | null>;
   listExchanges(limit?: number): Promise<HttpExchange[]>;
   getExchange(id: string): Promise<ExchangeDetail | null>;
   listEvents(limit?: number): Promise<ProtocolEvent[]>;
@@ -69,11 +74,19 @@ export async function createStorageClient(
     });
   };
 
-  await call("initialize");
+  try {
+    await call("initialize");
+  } catch (error) {
+    await worker.terminate();
+    throw error;
+  }
 
   return {
     recordExchange: async (exchange, events) =>
       call("recordExchange", { exchange, events }),
+    listTraces: async (query = {}) => call("listTraces", query),
+    getTrace: async (id, spanOffset = 0) =>
+      call("getTrace", { id, spanOffset }),
     listExchanges: async (limit = 100) => call("listExchanges", { limit }),
     getExchange: async (id) => call("getExchange", { id }),
     listEvents: async (limit = 200) => call("listEvents", { limit }),

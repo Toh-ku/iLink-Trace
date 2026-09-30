@@ -1,4 +1,8 @@
 import { existsSync } from "node:fs";
+import {
+  traceListQuerySchema,
+  type TraceListQuery,
+} from "@ilink-trace/contracts";
 import type { StorageClient } from "@ilink-trace/storage";
 import staticFiles from "@fastify/static";
 import { Type } from "@sinclair/typebox";
@@ -60,6 +64,34 @@ export async function createControlServer(
     time: Date.now(),
   }));
   app.get("/api/v1/overview", async () => options.storage.overview());
+  app.get(
+    "/api/v1/traces",
+    { schema: { querystring: traceListQuerySchema } },
+    async (request) =>
+      options.storage.listTraces(request.query as TraceListQuery),
+  );
+  app.get(
+    "/api/v1/traces/:id",
+    {
+      schema: {
+        params: Type.Object({
+          id: Type.String({ minLength: 1, maxLength: 100 }),
+        }),
+        querystring: Type.Object({
+          spanOffset: Type.Optional(
+            Type.Integer({ minimum: 0, maximum: 1_000_000 }),
+          ),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const value = await options.storage.getTrace(
+        (request.params as { id: string }).id,
+        (request.query as { spanOffset?: number }).spanOffset ?? 0,
+      );
+      return value ?? reply.code(404).send({ error: "not_found" });
+    },
+  );
   app.get(
     "/api/v1/exchanges",
     {

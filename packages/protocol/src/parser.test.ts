@@ -44,6 +44,17 @@ function exchange(overrides: Partial<HttpExchange>): HttpExchange {
 }
 
 describe("iLink parser", () => {
+  it("preserves numeric message IDs beyond the safe integer range", () => {
+    const parsed = parseExchange(
+      exchange({
+        responseBody:
+          '{"msgs":[{"message_id":9007199254740993,"seq":9007199254740995}]}',
+      }),
+      { hmacKey, captureMessageContent: false },
+    );
+    expect(parsed[1]?.data.messageId).toBe("9007199254740993");
+    expect(parsed[1]?.data.sequence).toBe("9007199254740995");
+  });
   it("correlates inbound and outbound events without retaining context tokens", () => {
     const inbound = parseExchange(exchange({}), {
       hmacKey,

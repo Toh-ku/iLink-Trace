@@ -14,7 +14,9 @@ function storageWithEvent(source: ProtocolEvent): StorageClient & {
   const replays: ReplayRun[] = [];
   return {
     replays,
-    recordExchange: async () => undefined,
+    recordExchange: async () => [],
+    listTraces: async () => ({ items: [], nextCursor: null }),
+    getTrace: async () => null,
     listExchanges: async () => [],
     getExchange: async () => null,
     listEvents: async () => [source],

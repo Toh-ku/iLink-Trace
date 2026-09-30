@@ -151,6 +151,9 @@ importers:
       "@ilink-trace/contracts":
         specifier: workspace:*
         version: link:../contracts
+      "@ilink-trace/protocol":
+        specifier: workspace:*
+        version: link:../protocol
       better-sqlite3:
         specifier: ^12.4.1
         version: 12.11.1

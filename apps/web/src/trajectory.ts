@@ -191,7 +191,19 @@ export function describeObservedOutcome(
 
   const ret = numericData(event, "ret");
   const errcode = numericData(event, "errcode");
-  const businessCode = ret ?? errcode;
+  const businessCode =
+    ret !== null && ret !== 0
+      ? ret
+      : errcode !== null && errcode !== 0
+        ? errcode
+        : (ret ?? errcode);
+  if (exchange?.responseTruncated)
+    return {
+      tone: "neutral",
+      transport,
+      business: "响应截断 · 业务状态未知",
+      delivery: "最终送达未知",
+    };
   if (businessCode !== null && businessCode !== 0) {
     return {
       tone: "warning",

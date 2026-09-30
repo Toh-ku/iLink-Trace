@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@ilink-trace/contracts": "workspace:*",
+    "@ilink-trace/protocol": "workspace:*",
     "better-sqlite3": "^12.4.1"
   },
   "devDependencies": {

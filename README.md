@@ -11,7 +11,7 @@ iLink Trace 是微信 iLink / ClawBot 协议的本地可观测代理与调试沙
 - 受信上游校验、账号 token HMAC 指纹和二维码确认 `baseurl` 改写。
 - 有界 request/response 捕获；转发完成后异步解析和写入 SQLite Worker。
 - `get_qrcode_status`、`getupdates`、`getconfig`、`sendtyping`、`sendmessage`、`getuploadurl` 和生命周期通知解析。
-- Vue 3 控制台：概览、实时事件、HTTP exchange 详情、重放运行、脱敏 JSON 导出和明暗主题。
+- Vue 3 控制台：聊天式消息、完整消息 Trace、实时事件账本、HTTP exchange 详情、重放运行、脱敏 JSON 导出和明暗主题。
 - 账号级文本重放沙箱：当前游标保持不变，typing/send/notify 不访问真实上游，未知端点 fail closed。
 - 默认不保存消息正文；Authorization、bot token、二维码信息和用户 ID 不以明文落库。
 
@@ -46,6 +46,21 @@ pnpm dev
 ```
 
 Vite 开发地址为 `http://127.0.0.1:5173`，`/api` 会代理到本地控制面。
+
+## 消息与 Trace
+
+控制台默认打开“聊天式消息”。左侧按入站消息列出历史记录，点击后在右侧查看用户消息与关联的 Bot 回复。可按账号指纹、发送者指纹、live/replay 来源和已捕获正文筛选；“加载更早消息”读取下一页，列表使用虚拟滚动。筛选和选中的 Trace 保存在 URL，访问令牌仍只在当前浏览器会话中保存。
+
+“完整 Trace”展示每条入站消息的 `getconfig`、typing、sendmessage 和可关联的媒体元数据调用，并提供 Bot / Trace / iLink / Replay Sandbox 四泳道时序图。点击时序区块或调用卡片打开脱敏 HTTP 详情，长 Trace 可以继续加载调用和回复。
+
+- context HMAC、run_id、已知 client_id 匹配标为 `exact`；同账号、同来源、同用户且在 5 分钟内的唯一候选标为 `probable`。
+- 多个候选保持 `ambiguous`，不强行挂到某条消息；无候选保持 `unlinked`。可在“事件账本”的详情中查看关联理由与候选 Trace。
+- 每次入站产生独立 Trace；重复使用 context 不会合并不同消息。live 与 replay 之间、不同账号之间不会相互关联。
+- 总耗时从入站消息被轮询返回时开始计算，不包含之前的长轮询等待。网络调用之间的空白只标为 `unobserved processing gap`。
+- 网络完成、HTTP 状态、JSON 可解析性、业务接受与最终送达分别展示。`ret: 0` 与非零 `errcode` 同时存在时仍判为业务拒绝；截断、未捕获或无法解析的响应不判为业务接受。
+- 默认关闭正文捕获时仍可查看结构与耗时，消息气泡会提示正文未捕获；需要正文时在启动前开启 `ILINK_TRACE_CAPTURE_MESSAGE_CONTENT=true`。
+
+首次启动新版会通过新增 migration 002 回填已有脱敏协议事件，原始 HTTP exchange 不会修改。派生 Trace 存储在 `message_traces` / `trace_spans`，所有数据库访问仍在 Worker 中。记录降级时页面会提示部分链路可能缺失。
 
 ## 配置
 
@@ -97,6 +112,8 @@ pnpm start
 - `GET /api/v1/exchanges`
 - `GET /api/v1/exchanges/:id`
 - `GET /api/v1/protocol-events`
+- `GET /api/v1/traces`（`limit` 1–100、`cursor`、`accountId`、`userId`、`source`、`search`）
+- `GET /api/v1/traces/:id`（`spanOffset`，每页 100 个 span）
 - `GET /api/v1/events`（SSE）
 - `POST /api/v1/replays`
 - `POST /api/v1/replays/:id/cancel`
@@ -124,6 +141,8 @@ pnpm test:integration
 ```
 
 集成测试只连接进程内的本地上游模拟器，不访问真实微信服务。
+
+Trace 列表返回 `{ items, nextCursor }`，游标按入站时间和 ID 分页；详情返回 `{ trace, spans, nextSpanOffset }`。SSE 的 `trace.created` / `trace.updated` 只携带实体 ID 和时间摘要，页面通过 REST 读取权威数据。集成测试使用编译后的 SQLite Worker，因此先执行 `pnpm build` 再执行 `pnpm test:integration`。
 
 ## 设计与贡献
 

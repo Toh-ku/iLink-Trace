@@ -6,7 +6,21 @@ import type {
   Overview,
   ProtocolEvent,
   ReplayRun,
+  TraceCandidate,
+  TraceDetail,
+  TraceSpan,
+  MessageTrace,
+  TraceListQuery,
+  TracePage,
 } from "@ilink-trace/contracts";
+import {
+  correlateEvent,
+  observeOutcome,
+  summarizeTrace,
+  textField,
+  CORRELATION_WINDOW_MS,
+} from "@ilink-trace/protocol";
+import { messageTraceMigration } from "./migrations/002-message-traces.js";
 import type { StorageRequest, StorageResponse } from "./worker-contract.js";
 
 interface WorkerOptions {
@@ -96,6 +110,38 @@ function initialize(): void {
   database.pragma("foreign_keys = ON");
   database.pragma("busy_timeout = 5000");
   database.exec(migration);
+  database.exec(
+    "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY)",
+  );
+  if (
+    !database
+      .prepare("SELECT version FROM schema_migrations WHERE version = 2")
+      .get()
+  ) {
+    database.transaction(() => {
+      db().exec(messageTraceMigration);
+      // Historical observations are kept intact; only new derived tables are backfilled.
+      let offset = 0;
+      while (true) {
+        // Finalize the read before writing derived rows; SQLite iterators retain a busy statement.
+        const rows = db()
+          .prepare(
+            "SELECT e.* FROM protocol_events e JOIN http_exchanges h ON h.id = e.exchange_id ORDER BY e.occurred_at, CASE WHEN e.kind = 'inbound_message' THEN 0 ELSE 1 END, e.id LIMIT 200 OFFSET ?",
+          )
+          .all(offset);
+        for (const row of rows) {
+          const item = eventFromRow(row as DatabaseRow);
+          const http = db()
+            .prepare("SELECT * FROM http_exchanges WHERE id = ?")
+            .get(item.exchangeId) as DatabaseRow;
+          linkEvent(item, exchangeFromRow(http));
+        }
+        if (rows.length < 200) break;
+        offset += rows.length;
+      }
+      db().prepare("INSERT INTO schema_migrations VALUES (2)").run();
+    })();
+  }
   database
     .prepare(
       `UPDATE replay_runs
@@ -151,6 +197,17 @@ function eventFromRow(row: DatabaseRow): ProtocolEvent {
     parserId: String(row.parser_id),
     parserVersion: Number(row.parser_version),
     occurredAt: Number(row.occurred_at),
+    ...(row.candidates_json === undefined
+      ? {}
+      : {
+          traceId: row.trace_id === null ? null : String(row.trace_id),
+          correlationReason: String(row.reason) as NonNullable<
+            ProtocolEvent["correlationReason"]
+          >,
+          candidateTraceIds: JSON.parse(
+            String(row.candidates_json),
+          ) as string[],
+        }),
   };
 }
 
@@ -180,7 +237,190 @@ function replayFromRow(row: DatabaseRow): ReplayRun {
   };
 }
 
-function recordExchange(exchange: HttpExchange, events: ProtocolEvent[]): void {
+function candidateFromRow(row: DatabaseRow): TraceCandidate {
+  const field = (key: string) => (row[key] === null ? null : String(row[key]));
+  return {
+    id: String(row.id),
+    accountId: field("account_id"),
+    source: String(row.source) as TraceCandidate["source"],
+    startedAt: Number(row.started_at),
+    contextFingerprint: field("context_fingerprint"),
+    runId: field("run_id"),
+    clientId: field("client_id"),
+    userId: field("user_id"),
+  };
+}
+
+function traceSpans(id: string, limit: number, offset = 0): TraceSpan[] {
+  return db()
+    .prepare(
+      `SELECT e.*, s.confidence AS link_confidence, s.reason AS link_reason
+    FROM trace_spans s JOIN protocol_events e ON e.id = s.event_id
+    JOIN http_exchanges h ON h.id = e.exchange_id
+    WHERE s.trace_id = ? ORDER BY h.started_at, e.occurred_at, e.id LIMIT ? OFFSET ?`,
+    )
+    .all(id, limit, offset)
+    .map((raw) => {
+      const row = raw as DatabaseRow;
+      const event = eventFromRow(row);
+      const http = db()
+        .prepare("SELECT * FROM http_exchanges WHERE id = ?")
+        .get(event.exchangeId) as DatabaseRow;
+      const exchange = exchangeFromRow(http);
+      return {
+        event,
+        exchange,
+        confidence: String(row.link_confidence) as TraceSpan["confidence"],
+        reason: String(row.link_reason) as TraceSpan["reason"],
+        outcome: observeOutcome(event, exchange),
+      };
+    });
+}
+
+function linkEvent(item: ProtocolEvent, exchange: HttpExchange): string | null {
+  const candidates = db()
+    .prepare(
+      `SELECT * FROM message_traces
+    WHERE account_id = ? AND source = ? AND started_at <= ? AND (
+      context_fingerprint = ? OR run_id = ? OR client_id = ? OR (user_id = ? AND started_at >= ?)
+    )`,
+    )
+    .all(
+      item.accountId,
+      exchange.source,
+      exchange.startedAt,
+      item.traceKey,
+      textField(item.data, "runId"),
+      textField(item.data, "clientId"),
+      textField(item.data, "userId") ?? textField(item.data, "toUserId"),
+      exchange.startedAt - CORRELATION_WINDOW_MS,
+    )
+    .map((row) => candidateFromRow(row as DatabaseRow));
+  const link = correlateEvent(item, exchange, candidates);
+  if (item.kind === "inbound_message") {
+    const candidate: TraceCandidate = {
+      id: item.id,
+      accountId: item.accountId,
+      source: exchange.source,
+      startedAt: item.occurredAt,
+      contextFingerprint: item.traceKey,
+      runId: textField(item.data, "runId"),
+      clientId: textField(item.data, "clientId"),
+      userId: textField(item.data, "fromUserId"),
+    };
+    db()
+      .prepare(
+        "INSERT INTO message_traces VALUES (@id, @accountId, @source, @startedAt, @contextFingerprint, @runId, @clientId, @userId, @summary)",
+      )
+      .run({
+        ...candidate,
+        summary: JSON.stringify(summarizeTrace(candidate, item, [])),
+      });
+  }
+  db()
+    .prepare("INSERT INTO trace_spans VALUES (?, ?, ?, ?, ?)")
+    .run(
+      item.id,
+      link.traceId,
+      link.confidence,
+      link.reason,
+      JSON.stringify(link.candidateTraceIds),
+    );
+  // Keep parser facts separate from correlation; API events expose the actual association confidence.
+  db()
+    .prepare("UPDATE protocol_events SET confidence = ? WHERE id = ?")
+    .run(link.confidence, item.id);
+  if (!link.traceId) return null;
+  if (link.confidence === "exact") {
+    // A user/time guess must not become an exact identity for later events.
+    db()
+      .prepare(
+        "UPDATE message_traces SET run_id = COALESCE(run_id, ?), client_id = COALESCE(client_id, ?) WHERE id = ?",
+      )
+      .run(
+        textField(item.data, "runId"),
+        textField(item.data, "clientId"),
+        link.traceId,
+      );
+  }
+  const row = db()
+    .prepare("SELECT * FROM message_traces WHERE id = ?")
+    .get(link.traceId) as DatabaseRow;
+  const inbound = eventFromRow(
+    db()
+      .prepare("SELECT * FROM protocol_events WHERE id = ?")
+      .get(link.traceId) as DatabaseRow,
+  );
+  const spans = traceSpans(link.traceId, -1);
+  db()
+    .prepare("UPDATE message_traces SET summary_json = ? WHERE id = ?")
+    .run(
+      JSON.stringify(summarizeTrace(candidateFromRow(row), inbound, spans)),
+      link.traceId,
+    );
+  return link.traceId;
+}
+
+function listTraces(query: TraceListQuery): TracePage {
+  const clauses: string[] = [];
+  const bindings: Array<string | number> = [];
+  for (const [key, column] of [
+    ["accountId", "account_id"],
+    ["userId", "user_id"],
+    ["source", "source"],
+  ] as const) {
+    if (query[key]) {
+      clauses.push(`${column} = ?`);
+      bindings.push(query[key]);
+    }
+  }
+  if (query.search) {
+    clauses.push(
+      "instr(lower(json_extract(summary_json, '$.inboundSummary')), lower(?)) > 0",
+    );
+    bindings.push(query.search);
+  }
+  if (query.cursor) {
+    const [time, id] = query.cursor.split(":");
+    clauses.push("(started_at < ? OR (started_at = ? AND id < ?))");
+    bindings.push(Number(time), Number(time), id ?? "");
+  }
+  const limit = Math.min(100, Math.max(1, query.limit ?? 50));
+  const rows = db()
+    .prepare(
+      `SELECT summary_json FROM message_traces ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""} ORDER BY started_at DESC, id DESC LIMIT ?`,
+    )
+    .all(...bindings, limit + 1) as DatabaseRow[];
+  const items = rows
+    .slice(0, limit)
+    .map((row) => JSON.parse(String(row.summary_json)) as MessageTrace);
+  const last = items.at(-1);
+  return {
+    items,
+    nextCursor:
+      rows.length > limit && last ? `${last.startedAt}:${last.id}` : null,
+  };
+}
+
+function getTrace(id: string, offset: number): TraceDetail | null {
+  const row = db()
+    .prepare("SELECT summary_json FROM message_traces WHERE id = ?")
+    .get(id) as DatabaseRow | undefined;
+  if (!row) return null;
+  const trace = JSON.parse(String(row.summary_json)) as MessageTrace;
+  const spans = traceSpans(id, 100, offset);
+  return {
+    trace,
+    spans,
+    nextSpanOffset:
+      offset + spans.length < trace.spanCount ? offset + spans.length : null,
+  };
+}
+
+function recordExchange(
+  exchange: HttpExchange,
+  events: ProtocolEvent[],
+): Array<{ id: string; created: boolean }> {
   const insertExchange = db().prepare(`
     INSERT INTO http_exchanges VALUES (
       @id, @accountId, @method, @path, @query, @upstreamOrigin,
@@ -195,6 +435,7 @@ function recordExchange(exchange: HttpExchange, events: ProtocolEvent[]): void {
       @confidence, @parserId, @parserVersion, @occurredAt
     )
   `);
+  const changed = new Map<string, boolean>();
   db().transaction(() => {
     insertExchange.run({
       ...exchange,
@@ -203,9 +444,17 @@ function recordExchange(exchange: HttpExchange, events: ProtocolEvent[]): void {
       requestTruncated: Number(exchange.requestTruncated),
       responseTruncated: Number(exchange.responseTruncated),
     });
-    for (const item of events)
+    for (const item of events) {
       insertEvent.run({ ...item, data: JSON.stringify(item.data) });
+      const id = linkEvent(item, exchange);
+      if (id)
+        changed.set(
+          id,
+          changed.get(id) === true || item.kind === "inbound_message",
+        );
+    }
   })();
+  return [...changed].map(([id, created]) => ({ id, created }));
 }
 
 function upsertReplay(replay: ReplayRun): void {
@@ -241,9 +490,15 @@ function handle(request: StorageRequest): unknown {
         exchange: HttpExchange;
         events: ProtocolEvent[];
       };
-      recordExchange(value.exchange, value.events);
-      return null;
+      return recordExchange(value.exchange, value.events);
     }
+    case "listTraces":
+      return listTraces(payload);
+    case "getTrace":
+      return getTrace(
+        String(payload.id),
+        Math.max(0, Number(payload.spanOffset ?? 0)),
+      );
     case "listExchanges":
       return db()
         .prepare(
@@ -258,7 +513,7 @@ function handle(request: StorageRequest): unknown {
       if (!row) return null;
       const events = db()
         .prepare(
-          "SELECT * FROM protocol_events WHERE exchange_id = ? ORDER BY occurred_at ASC",
+          "SELECT e.*, s.trace_id, s.reason, s.candidates_json FROM protocol_events e LEFT JOIN trace_spans s ON s.event_id = e.id WHERE exchange_id = ? ORDER BY occurred_at ASC, e.id",
         )
         .all(String(payload.id))
         .map((item) => eventFromRow(item as DatabaseRow));
@@ -267,13 +522,15 @@ function handle(request: StorageRequest): unknown {
     case "listEvents":
       return db()
         .prepare(
-          "SELECT * FROM protocol_events ORDER BY occurred_at DESC LIMIT ?",
+          "SELECT e.*, s.trace_id, s.reason, s.candidates_json FROM protocol_events e LEFT JOIN trace_spans s ON s.event_id = e.id ORDER BY occurred_at DESC, e.id DESC LIMIT ?",
         )
         .all(Number(payload.limit))
         .map((row) => eventFromRow(row as DatabaseRow));
     case "getEvent": {
       const row = db()
-        .prepare("SELECT * FROM protocol_events WHERE id = ?")
+        .prepare(
+          "SELECT e.*, s.trace_id, s.reason, s.candidates_json FROM protocol_events e LEFT JOIN trace_spans s ON s.event_id = e.id WHERE e.id = ?",
+        )
         .get(String(payload.id)) as DatabaseRow | undefined;
       return row ? eventFromRow(row) : null;
     }

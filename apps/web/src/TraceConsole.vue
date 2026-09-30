@@ -18,11 +18,21 @@ import {
   type TrajectoryTimelineMode,
 } from "./trajectory";
 import { nextTheme, resolveTheme, type Theme } from "./theme";
+import MessageWorkspace from "./MessageWorkspace.vue";
 
 type CategoryFilter = "all" | TrajectoryCategory;
 
 const token = ref("");
 const tokenInput = ref("");
+const activePage = ref<"messages" | "traces" | "ledger">(
+  new URL(window.location.href).searchParams.get("view") === "traces"
+    ? "traces"
+    : new URL(window.location.href).searchParams.get("view") === "ledger"
+      ? "ledger"
+      : "messages",
+);
+const revision = ref(0);
+const recorderDegraded = ref(false);
 const overview = ref<Overview | null>(null);
 const events = ref<ProtocolEvent[]>([]);
 const exchanges = ref<HttpExchange[]>([]);
@@ -171,6 +181,7 @@ async function refresh(showSpinner = false): Promise<void> {
     events.value = nextEvents;
     exchanges.value = nextExchanges;
     replays.value = nextReplays;
+    revision.value += 1;
     if (
       selectedEventId.value &&
       !nextEvents.some((item) => item.id === selectedEventId.value)
@@ -206,11 +217,40 @@ function connectStream(): void {
   for (const type of [
     "exchange.created",
     "protocol-event.created",
+    "trace.created",
+    "trace.updated",
     "replay.updated",
     "recorder.degraded",
   ]) {
     stream.addEventListener(type, scheduleRefresh);
   }
+  stream.addEventListener("recorder.degraded", () => {
+    recorderDegraded.value = true;
+  });
+  stream.onopen = () => {
+    streamState.value = "live";
+    scheduleRefresh();
+  };
+}
+
+function changePage(page: "messages" | "traces" | "ledger"): void {
+  activePage.value = page;
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", page);
+  window.history.replaceState({}, "", url);
+}
+function openTrace(id: string): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set("trace", id);
+  window.history.replaceState({}, "", url);
+  changePage("traces");
+}
+
+async function traceRequest(
+  path: string,
+  signal: AbortSignal,
+): Promise<unknown> {
+  return api<unknown>(path, { signal });
 }
 
 function useToken(value = tokenInput.value): void {
@@ -224,6 +264,7 @@ function useToken(value = tokenInput.value): void {
 }
 
 async function inspectExchange(id: string): Promise<void> {
+  if (!id) return;
   try {
     selectedExchange.value = await api<ExchangeDetail>(`/exchanges/${id}`);
   } catch (reason) {
@@ -408,11 +449,45 @@ onUnmounted(() => {
         <span>{{ error }}</span>
         <button @click="error = ''">关闭</button>
       </div>
+      <p v-if="recorderDegraded" class="notice" role="alert">
+        记录已降级，部分交换可能未保存。当前 Trace 可能不完整。
+      </p>
+      <nav class="page-tabs" aria-label="控制台页面">
+        <button
+          class="ghost"
+          :class="{ active: activePage === 'messages' }"
+          @click="changePage('messages')"
+        >
+          聊天式消息
+        </button>
+        <button
+          class="ghost"
+          :class="{ active: activePage === 'traces' }"
+          @click="changePage('traces')"
+        >
+          完整 Trace
+        </button>
+        <button
+          class="ghost"
+          :class="{ active: activePage === 'ledger' }"
+          @click="changePage('ledger')"
+        >
+          事件账本
+        </button>
+      </nav>
 
       <section class="page-heading">
         <div>
           <p class="eyebrow">TRAJECTORY</p>
-          <h2>消息轨迹</h2>
+          <h2>
+            {{
+              activePage === "messages"
+                ? "消息与回复"
+                : activePage === "traces"
+                  ? "完整消息 Trace"
+                  : "消息轨迹"
+            }}
+          </h2>
           <p>
             以事件账本还原用户输入、协议调用与 Bot
             返回；时间仅代表代理实际观察到的网络事实。
@@ -452,7 +527,15 @@ onUnmounted(() => {
         </article>
       </section>
 
-      <section class="trajectory-shell">
+      <MessageWorkspace
+        v-if="activePage !== 'ledger'"
+        :mode="activePage"
+        :revision="revision"
+        :request="traceRequest"
+        @inspect="inspectExchange"
+        @replay="startReplay"
+      />
+      <section v-else class="trajectory-shell">
         <div class="trajectory-main">
           <div class="trajectory-toolbar">
             <div>
@@ -692,6 +775,28 @@ onUnmounted(() => {
             </section>
 
             <section class="inspector-section">
+              <h4>Trace 关联证据</h4>
+              <p class="boundary-copy">
+                {{ selectedEvent.correlationReason ?? "unlinked" }} ·
+                {{ selectedEvent.confidence }}
+              </p>
+              <button
+                v-if="selectedEvent.traceId"
+                class="text-button"
+                @click="openTrace(selectedEvent.traceId)"
+              >
+                打开关联 Trace
+              </button>
+              <button
+                v-for="id in selectedEvent.candidateTraceIds ?? []"
+                :key="id"
+                class="ghost wide"
+                @click="openTrace(id)"
+              >
+                候选 Trace {{ shortId(id) }}
+              </button>
+            </section>
+            <section class="inspector-section">
               <h4>记录数据（已脱敏）</h4>
               <pre>{{ formatJson(selectedEvent.data) }}</pre>
             </section>
@@ -843,6 +948,14 @@ onUnmounted(() => {
         <section>
           <h4>请求 Body</h4>
           <pre>{{ selectedExchange.requestBody ?? "(empty)" }}</pre>
+        </section>
+        <section>
+          <h4>响应 Headers（已脱敏）</h4>
+          <pre>{{ formatJson(selectedExchange.responseHeaders) }}</pre>
+        </section>
+        <section v-if="selectedExchange.errorStage">
+          <h4>网络错误阶段</h4>
+          <p class="notice">{{ selectedExchange.errorStage }}</p>
         </section>
         <section>
           <h4>响应 Body</h4>

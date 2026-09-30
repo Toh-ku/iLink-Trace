@@ -94,12 +94,22 @@ export class Recorder {
             this.#options.captureMessageContent,
           ),
         };
-        await this.#options.storage.recordExchange(exchange, parsed);
+        const traces = await this.#options.storage.recordExchange(
+          exchange,
+          parsed,
+        );
+        for (const trace of traces)
+          this.#options.events.publish(
+            trace.created ? "trace.created" : "trace.updated",
+            trace.id,
+          );
         this.#options.events.publish("exchange.created", exchange.id);
         for (const item of parsed) {
           this.#options.events.publish("protocol-event.created", item.id);
         }
       } catch (error) {
+        this.#dropped += 1;
+        this.#options.events.publish("recorder.degraded", rawExchange.id);
         this.#options.logger.error(
           {
             exchangeId: rawExchange.id,

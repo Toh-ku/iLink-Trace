@@ -1,6 +1,8 @@
 export type StorageOperation =
   | "initialize"
   | "recordExchange"
+  | "listTraces"
+  | "getTrace"
   | "listExchanges"
   | "getExchange"
   | "listEvents"

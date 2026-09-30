@@ -6,6 +6,13 @@ import type {
 } from "@ilink-trace/contracts";
 
 export const PARSER_API_VERSION = 1;
+export {
+  correlateEvent,
+  observeOutcome,
+  summarizeTrace,
+  textField,
+  CORRELATION_WINDOW_MS,
+} from "./trace.js";
 
 export interface RawExchangeForParsing extends Omit<
   HttpExchange,
@@ -21,7 +28,7 @@ export interface ParserOptions {
 }
 
 const PARSER_ID = "ilink-core";
-const PARSER_VERSION = 1;
+const PARSER_VERSION = 2;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -32,7 +39,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function parseJson(text: string | null): unknown {
   if (!text) return null;
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(
+      text,
+      (_key: string, value: unknown, context?: { source: string }) => {
+        // Node 24 exposes the original JSON number so IDs above 2^53 stay lossless.
+        return typeof value === "number" &&
+          Number.isInteger(value) &&
+          !Number.isSafeInteger(value)
+          ? (context?.source ?? String(value))
+          : value;
+      },
+    ) as unknown;
   } catch {
     return null;
   }
@@ -147,12 +164,17 @@ export function parseExchange(
           {
             messageId:
               stringValue(message.message_id) ??
-              numberValue(message.message_id),
-            sequence: stringValue(message.seq) ?? numberValue(message.seq),
+              (numberValue(message.message_id) === null
+                ? null
+                : String(message.message_id)),
+            sequence:
+              stringValue(message.seq) ??
+              (numberValue(message.seq) === null ? null : String(message.seq)),
             fromUserId: fingerprint(message.from_user_id, options.hmacKey),
             toUserId: fingerprint(message.to_user_id, options.hmacKey),
             contextFingerprint: traceKey,
             runId: stringValue(message.run_id),
+            clientId: stringValue(message.client_id),
             messageType: numberValue(message.message_type),
             text: messageText(message, options.captureMessageContent),
             rawMessage: sanitizeProtocolValue(
@@ -178,6 +200,8 @@ export function parseExchange(
         {
           userId: fingerprint(request?.ilink_user_id, options.hmacKey),
           contextFingerprint: traceKey,
+          runId: stringValue(request?.run_id),
+          clientId: stringValue(request?.client_id),
           typingTicketPresent: Boolean(stringValue(response?.typing_ticket)),
           ...responseOutcome(response),
         },
@@ -189,11 +213,23 @@ export function parseExchange(
   if (endpoint.endsWith("/sendtyping")) {
     const status = numberValue(request?.status);
     return [
-      event(exchange, "typing", status === 1 ? "开始输入" : "结束输入", {
-        userId: fingerprint(request?.ilink_user_id, options.hmacKey),
-        status,
-        ...responseOutcome(response),
-      }),
+      event(
+        exchange,
+        "typing",
+        status === 1 ? "开始输入" : "结束输入",
+        {
+          userId: fingerprint(request?.ilink_user_id, options.hmacKey),
+          contextFingerprint: fingerprint(
+            request?.context_token,
+            options.hmacKey,
+          ),
+          runId: stringValue(request?.run_id),
+          clientId: stringValue(request?.client_id),
+          status,
+          ...responseOutcome(response),
+        },
+        fingerprint(request?.context_token, options.hmacKey),
+      ),
     ];
   }
 
@@ -227,6 +263,11 @@ export function parseExchange(
   if (endpoint.endsWith("/getuploadurl")) {
     return [
       event(exchange, "upload_url", "获取媒体上传地址", {
+        userId: fingerprint(
+          request?.ilink_user_id ?? request?.to_user_id,
+          options.hmacKey,
+        ),
+        runId: stringValue(request?.run_id),
         mediaType: numberValue(request?.media_type),
         rawSize: numberValue(request?.rawsize),
         uploadUrlPresent: Boolean(stringValue(response?.upload_full_url)),
