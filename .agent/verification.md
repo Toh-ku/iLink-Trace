@@ -70,6 +70,8 @@ pnpm test:integration
 - sendmessage/sendtyping/upload/notify 不触达真实上游。
 - 未知端点 fail closed。
 - 完成、取消、超时和 daemon 重启都能安全恢复。
+- 创建前检查账号在途 LIVE 请求；异步创建期间同账号只能占用一次。
+- 完成/取消/超时写库失败时保持账号隔离；超时回调不能产生未处理 Promise rejection。
 
 ### Vue / Control API
 
@@ -81,6 +83,8 @@ pnpm test:integration
 - HTTP 成功、业务接受和最终送达未知在 UI 中可区分。
 
 ## 3. 安全扫描
+
+本地 simulator 场景及验收边界见 [本地可靠性验证](../docs/reliability.zh-CN.md)。35 秒长轮询必须使用真实时间；SQLite Worker 集成测试前先执行 `pnpm build`。代理取消检查必须包含下游已产生背压的断连场景。
 
 提交前搜索常见敏感字段：
 

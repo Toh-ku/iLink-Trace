@@ -101,6 +101,8 @@ pnpm start
 
 执行重放会生成新的消息 ID、序号、时间和临时 context token，降低 Bot 去重的概率。保真重放保留已安全存储的非敏感字段。两种模式都不会恢复或持久化原始 context token。
 
+开始重放时，如果账号仍有在途 LIVE 请求（包括长轮询），会拒绝创建，待请求结束或取消后可重试。同账号并发创建只允许一个任务。完成、取消或超时写库失败时，账号保持隔离；存储恢复后可显式取消以恢复 LIVE。
+
 ## API
 
 控制 API 使用 `Authorization: Bearer <access-token>`。SSE 因浏览器 `EventSource` 限制使用本地 query token，控制服务不会记录请求日志。
@@ -140,7 +142,7 @@ pnpm build
 pnpm test:integration
 ```
 
-集成测试只连接进程内的本地上游模拟器，不访问真实微信服务。
+集成测试只连接本地上游模拟器，不访问真实微信服务。覆盖真实 35 秒长轮询、断连/背压取消、上游超时/断流、捕获截断、区域登录路由、观测故障和重放网络隔离。完整覆盖及尚未完成的验收见 [本地可靠性验证](docs/reliability.zh-CN.md)；真实客户端兼容性和远端三平台 CI 结果需单独确认。
 
 Trace 列表返回 `{ items, nextCursor }`，游标按入站时间和 ID 分页；详情返回 `{ trace, spans, nextSpanOffset }`。SSE 的 `trace.created` / `trace.updated` 只携带实体 ID 和时间摘要，页面通过 REST 读取权威数据。集成测试使用编译后的 SQLite Worker，因此先执行 `pnpm build` 再执行 `pnpm test:integration`。
 

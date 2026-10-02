@@ -50,6 +50,9 @@ export class ReplayManager {
   readonly #options: ReplayManagerOptions;
   readonly #activeByAccount = new Map<string, ReplayRun>();
   readonly #timers = new Map<string, NodeJS.Timeout>();
+  readonly #starting = new Set<string>();
+  readonly #finishing = new Set<string>();
+  readonly #liveRequests = new Map<string, number>();
 
   constructor(options: ReplayManagerOptions) {
     this.#options = options;
@@ -57,6 +60,19 @@ export class ReplayManager {
 
   hasActive(accountId: string | null): boolean {
     return accountId !== null && this.#activeByAccount.has(accountId);
+  }
+
+  beginLiveRequest(accountId: string | null): () => void {
+    if (!accountId) return () => {};
+    this.#liveRequests.set(
+      accountId,
+      (this.#liveRequests.get(accountId) ?? 0) + 1,
+    );
+    return () => {
+      const remaining = (this.#liveRequests.get(accountId) ?? 1) - 1;
+      if (remaining === 0) this.#liveRequests.delete(accountId);
+      else this.#liveRequests.set(accountId, remaining);
+    };
   }
 
   async create(input: CreateReplayInput): Promise<ReplayRun> {
@@ -67,6 +83,11 @@ export class ReplayManager {
     if (!source.accountId) throw new Error("source event has no account");
     if (this.#activeByAccount.has(source.accountId)) {
       throw new Error("this account already has an active replay");
+    }
+    if (this.#liveRequests.has(source.accountId)) {
+      throw new Error(
+        "account has an in-flight LIVE request; retry after it completes",
+      );
     }
     const rawMessage = asObject(source.data.rawMessage);
     if (!rawMessage) throw new Error("source message payload is unavailable");
@@ -90,8 +111,17 @@ export class ReplayManager {
       updatedAt: now,
       error: null,
     };
-    await this.#options.storage.createReplay(replay);
+    // Reserve before the first write so concurrent creates and requests cannot escape isolation.
     this.#activeByAccount.set(replay.accountId, replay);
+    this.#starting.add(replay.accountId);
+    try {
+      await this.#options.storage.createReplay(replay);
+    } catch (error) {
+      this.#activeByAccount.delete(replay.accountId);
+      throw error;
+    } finally {
+      this.#starting.delete(replay.accountId);
+    }
     this.#scheduleTimeout(replay);
     this.#options.events.publish("replay.updated", replay.id);
     return replay;
@@ -102,6 +132,10 @@ export class ReplayManager {
       (candidate) => candidate.id === id,
     );
     if (!replay) return null;
+    if (this.#starting.has(replay.accountId))
+      throw new Error("replay is still being created");
+    if (this.#finishing.has(replay.accountId))
+      throw new Error("replay completion is being persisted");
     return this.#finish(replay, "cancelled", null);
   }
 
@@ -115,6 +149,18 @@ export class ReplayManager {
       return {
         statusCode: 409,
         body: { ret: -1, errmsg: "replay is not active" },
+      };
+    }
+    if (this.#starting.has(accountId)) {
+      return {
+        statusCode: 409,
+        body: { ret: -1, errmsg: "replay is still being created" },
+      };
+    }
+    if (this.#finishing.has(accountId)) {
+      return {
+        statusCode: 409,
+        body: { ret: -1, errmsg: "replay completion is being persisted" },
       };
     }
     if (replay.status === "failed") {
@@ -231,20 +277,38 @@ export class ReplayManager {
     status: ReplayRun["status"],
     error: string | null,
   ): Promise<ReplayRun> {
-    replay.status = status;
-    replay.error = error;
-    replay.updatedAt = Date.now();
-    this.#activeByAccount.delete(replay.accountId);
+    if (this.#finishing.has(replay.accountId))
+      throw new Error("replay completion is being persisted");
+    this.#finishing.add(replay.accountId);
     const timer = this.#timers.get(replay.id);
     if (timer) clearTimeout(timer);
     this.#timers.delete(replay.id);
-    await this.#update(replay);
+    replay.status = status;
+    replay.error = error;
+    replay.updatedAt = Date.now();
+    // Do not restore LIVE until the terminal state is durably acknowledged.
+    try {
+      await this.#update(replay);
+    } catch (cause) {
+      replay.status = "failed";
+      replay.error =
+        "failed to persist replay completion; account remains quarantined";
+      replay.updatedAt = Date.now();
+      this.#options.events.publish("replay.updated", replay.id);
+      throw cause;
+    } finally {
+      this.#finishing.delete(replay.accountId);
+    }
+    this.#activeByAccount.delete(replay.accountId);
     return replay;
   }
 
   #scheduleTimeout(replay: ReplayRun): void {
     const timer = setTimeout(() => {
-      void this.#finish(replay, "timed_out", "replay timed out");
+      // Failed persistence keeps the account quarantined; it must not become an unhandled rejection.
+      void this.#finish(replay, "timed_out", "replay timed out").catch(
+        () => {},
+      );
     }, this.#options.timeoutMs ?? 60_000);
     timer.unref();
     this.#timers.set(replay.id, timer);

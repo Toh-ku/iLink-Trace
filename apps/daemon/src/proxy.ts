@@ -72,21 +72,35 @@ function headerMap(
 }
 
 function forwardHeaders(headers: HeaderMap): Record<string, string | string[]> {
+  const connectionHeaders = connectionTokens(headers);
   return Object.fromEntries(
     Object.entries(headers).filter(
       ([name]) =>
         !HOP_BY_HOP_HEADERS.has(name.toLowerCase()) &&
+        !connectionHeaders.has(name.toLowerCase()) &&
         name.toLowerCase() !== "host",
     ),
+  );
+}
+
+function connectionTokens(headers: HeaderMap): Set<string> {
+  const value = headers.connection;
+  return new Set(
+    (Array.isArray(value) ? value.join(",") : (value ?? ""))
+      .split(",")
+      .map((name) => name.trim().toLowerCase()),
   );
 }
 
 function responseHeaders(
   headers: Record<string, string | string[] | undefined>,
 ): Record<string, string | string[]> {
+  const connectionHeaders = connectionTokens(headerMap(headers));
   return Object.fromEntries(
     Object.entries(headers).flatMap(([name, value]) =>
-      value === undefined || HOP_BY_HOP_HEADERS.has(name.toLowerCase())
+      value === undefined ||
+      HOP_BY_HOP_HEADERS.has(name.toLowerCase()) ||
+      connectionHeaders.has(name.toLowerCase())
         ? []
         : [[name, value]],
     ),
@@ -149,8 +163,11 @@ function rewriteBootstrapResponse(
 async function writeChunk(
   response: ServerResponse,
   chunk: Uint8Array,
+  signal: AbortSignal,
 ): Promise<void> {
-  if (!response.write(chunk)) await once(response, "drain");
+  signal.throwIfAborted();
+  // A disconnected slow client cannot emit drain; cancellation must also release this wait.
+  if (!response.write(chunk)) await once(response, "drain", { signal });
 }
 
 export interface ProxyServerOptions {
@@ -158,6 +175,7 @@ export interface ProxyServerOptions {
   registry: AccountRegistry;
   recorder: Recorder;
   replay: ReplayManager;
+  upstreamHeadersTimeoutMs?: number;
 }
 
 export function createProxyServer(options: ProxyServerOptions): Server {
@@ -174,6 +192,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
     let storedResponseHeaders: HeaderMap = {};
     let route = options.registry.resolve(request.headers.authorization);
     let source: HttpExchange["source"] = "live";
+    let releaseLiveRequest = () => {};
     const incomingUrl = new URL(request.url ?? "/", "http://trace.invalid");
 
     request.once("aborted", () => abortController.abort());
@@ -212,6 +231,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
         return;
       }
 
+      releaseLiveRequest = options.replay.beginLiveRequest(route.accountId);
       const requestBody =
         request.method === "GET" || request.method === "HEAD"
           ? null
@@ -234,7 +254,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
         headers: outgoingHeaders,
         body: requestBody,
         signal: abortController.signal,
-        headersTimeout: 70_000,
+        headersTimeout: options.upstreamHeadersTimeoutMs ?? 70_000,
         bodyTimeout: 0,
       });
       headersAt = Date.now();
@@ -260,10 +280,11 @@ export function createProxyServer(options: ProxyServerOptions): Server {
           } else {
             if (!passthrough) {
               response.writeHead(responseStatus, rawResponseHeaders);
-              for (const buffered of held) await writeChunk(response, buffered);
+              for (const buffered of held)
+                await writeChunk(response, buffered, abortController.signal);
               passthrough = true;
             }
-            await writeChunk(response, bytes);
+            await writeChunk(response, bytes, abortController.signal);
           }
         }
         if (!passthrough) {
@@ -291,7 +312,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
         for await (const chunk of upstreamResponse.body) {
           const bytes = Buffer.from(chunk);
           responseCapture.add(bytes);
-          await writeChunk(response, bytes);
+          await writeChunk(response, bytes, abortController.signal);
         }
         response.end();
       }
@@ -308,6 +329,7 @@ export function createProxyServer(options: ProxyServerOptions): Server {
         response.destroy();
       }
     } finally {
+      releaseLiveRequest();
       const completedAt = Date.now();
       const exchange: HttpExchange = {
         id,

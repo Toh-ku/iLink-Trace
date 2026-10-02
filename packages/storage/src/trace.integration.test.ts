@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
-import type { HttpExchange } from "@ilink-trace/contracts";
+import type { HttpExchange, ReplayRun } from "@ilink-trace/contracts";
 import { parseExchange, sanitizeJsonBody } from "@ilink-trace/protocol";
 import type { StorageClient } from "./index.js";
 import type * as StorageModule from "./index.js";
@@ -87,6 +87,59 @@ const message = (context = "test-context", text = "test inbound") => ({
 });
 
 describe("persistent message traces", () => {
+  it("fails unfinished replay states on restart and preserves terminal results", async () => {
+    const path = join(await directory(), "replay-recovery.db");
+    const storage = await open(path);
+    const statuses: ReplayRun["status"][] = [
+      "queued",
+      "sandbox",
+      "draining",
+      "completed",
+      "cancelled",
+      "timed_out",
+      "failed",
+    ];
+    for (const status of statuses) {
+      await storage.createReplay({
+        id: `test-${status}`,
+        accountId: `test-account-${status}`,
+        sourceEventId: "test-source",
+        mode: "execution",
+        status,
+        currentCursor: "test-current-cursor",
+        inboundMessage: { text: "test inbound" },
+        capturedReply: status === "completed" ? { text: "test reply" } : null,
+        createdAt: 1,
+        updatedAt: 2,
+        error: null,
+      });
+    }
+    await storage.close();
+    clients.splice(clients.indexOf(storage), 1);
+    const restarted = await open(path);
+    const runs = await restarted.listReplays();
+    expect(runs).toHaveLength(statuses.length);
+    for (const status of statuses) {
+      const run = runs.find((item) => item.id === `test-${status}`);
+      if (["queued", "sandbox", "draining"].includes(status))
+        expect(run).toMatchObject({
+          status: "failed",
+          error: "daemon restarted during replay",
+        });
+      else expect(run?.status).toBe(status);
+    }
+    expect(
+      runs.find((item) => item.id === "test-completed")?.capturedReply,
+    ).toEqual({ text: "test reply" });
+    expect(await restarted.listExchanges()).toEqual([]);
+    await restarted.close();
+    clients.splice(clients.indexOf(restarted), 1);
+    expect(
+      (await (await open(path)).listReplays()).filter((item) =>
+        ["queued", "sandbox", "draining"].includes(item.status),
+      ),
+    ).toEqual([]);
+  });
   it("learns client identities only from exact links", async () => {
     const storage = await open(":memory:");
     const inbound = await record(
